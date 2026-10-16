@@ -61,7 +61,8 @@ script receives that as arguments, inheriting the full Steam context
 
 ## Requirements / notes
 
-- Steam build of WoT (WGC publication). `s:` mapping, `wgcs_api.exe`
+- Steam build of WoT (WGC publication), Proton Experimental, verified
+  against WoT EU 2.4.1.0, Oct 2026. `s:` mapping, `wgcs_api.exe`
   chain and token2 SSO are Steam-build specifics.
 - The 45 s settle covers wine + broker boot with ~2× margin (broker
   itself is game-ready ~8 s after its log starts; too-short costs a full
