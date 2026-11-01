@@ -13,8 +13,10 @@ touched.
 - `wot-launch.sh` — Steam launch-options entry point (dispatcher).
   Default mode `oneclick`; see Modes below.
 - `wot_boot.bat` — runs inside wine: starts the broker with
-  `--background`, waits 45 s, then `start /wait`s the game exe via its
-  `S:\…` path (the broker only accepts the game folder in that form).
+  `--background`, waits for its IPC server to come up (polls the broker's
+  own log for `GameCenter initialization finished`, 45 s cap), then
+  `start /wait`s the game exe via its `S:\…` path (the broker only
+  accepts the game folder in that form).
 
 Live copies live in `~/.local/bin/wot-oneclick/`; this directory is the
 source of truth — edit here, copy out to deploy.
@@ -43,7 +45,8 @@ script receives that as arguments, inheriting the full Steam context
 3. `exec`s a single `proton waitforexitandrun` on the batch → one
    wineserver → broker and game share the pipe namespace.
 4. Broker onboards headless (Steam ticket → token2 tails, ~5–10 s).
-5. After the settle wait the game starts, `VerifyGameImported` sees the
+5. Once the broker reports a finished initialization (~2.5 s) the game
+   starts, `VerifyGameImported` sees the
    `S:\…` folder, pulls a tail, logs in. Hangar, zero clicks.
 6. After account-done, `wgc.exe` may be killed (it leaks RAM under
    Proton/CEF); the game holds its session. Reconnect-after-drop is the
@@ -64,12 +67,17 @@ script receives that as arguments, inheriting the full Steam context
 - Steam build of WoT (WGC publication), Proton Experimental, verified
   against WoT EU 2.4.1.0, Oct 2026. `s:` mapping, `wgcs_api.exe`
   chain and token2 SSO are Steam-build specifics.
-- The 45 s settle covers wine + broker boot with ~2× margin (broker
-  itself is game-ready ~8 s after its log starts; too-short costs a full
-  restart, too-long costs seconds). A readiness poll instead of a fixed
-  sleep is future work — it has to live inside the wine session (batch
-  side) to preserve the single-wineserver pipe sharing, so it stays
-  dumb and robust for now.
+- The wait is a readiness poll, not a fixed sleep, because the game's
+  WGC client does not retry: its first call must find
+  `\\.\pipe\WgIpcPipe` or it bails out with the "relaunch via Steam"
+  dialog (too-short costs a full restart). The broker logs
+  `GameCenter initialization finished` ~2.3 s after its log starts and
+  finishes Steam onboarding ~0.4 s later, so the batch polls for that
+  marker plus a 3 s cushion — ~6 s from click to game instead of 45 s.
+  The poll has to live inside the wine session (batch side) to preserve
+  the single-wineserver pipe sharing. If the marker ever disappears
+  from a future WGC log format the tick cap degrades to the old 45 s
+  wait rather than hanging.
 - If the game shows the "relaunch via Steam" dialog, the broker wasn't
   reachable (pipe split or dead) — check `wgc_*.log` for `8023` /
   `VerifyGameImported` lines.
